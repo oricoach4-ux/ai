@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>오리 소개</title>
+<style>
+  :root {
+    --bg: #eaf6f6;
+    --card: #ffffff;
+    --accent: #ff9f43;
+    --text: #223344;
+    --sub: #5a6b7a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    padding: 40px 16px;
+  }
+  main {
+    max-width: 640px;
+    width: 100%;
+  }
+  header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  header .emoji {
+    font-size: 72px;
+  }
+  h1 {
+    font-size: 28px;
+    margin: 8px 0 4px;
+  }
+  header p {
+    color: var(--sub);
+    margin: 0;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  }
+  .card h2 {
+    margin-top: 0;
+    font-size: 18px;
+    color: var(--accent);
+  }
+  ul { margin: 8px 0 0; padding-left: 20px; }
+  li { margin-bottom: 6px; }
+  footer {
+    text-align: center;
+    color: var(--sub);
+    font-size: 13px;
+    margin-top: 24px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="emoji">🦆</div>
+    <h1>오리 이야기</h1>
+    <p>물 위를 유유히 떠다니는 친근한 새, 오리를 소개합니다</p>
+  </header>
+
+  <section class="card">
+    <h2>오리는 어떤 동물일까?</h2>
+    <p>오리는 오리과(Anatidae)에 속하는 물새로, 전 세계 대부분의 강·호수·습지에서 살아갑니다. 몸이 통통하고 부리가 넓적하며, 물갈퀴가 달린 발로 헤엄을 잘 칩니다.</p>
+  </section>
+
+  <section class="card">
+    <h2>오리의 특징</h2>
+    <ul>
+      <li>물에 잘 떠있도록 몸에 기름기가 있는 방수 깃털을 가지고 있습니다.</li>
+      <li>물갈퀴 발 덕분에 헤엄을 빠르고 효율적으로 칩니다.</li>
+      <li>넓적한 부리로 물속의 작은 곤충, 식물, 씨앗 등을 걸러 먹습니다.</li>
+      <li>대부분 무리를 지어 생활하며 사회성이 강합니다.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>재미있는 사실</h2>
+    <ul>
+      <li>새끼 오리는 태어나자마자 처음 본 움직이는 대상을 어미로 여기고 따라다닙니다.</li>
+      <li>오리는 잠을 잘 때도 한쪽 눈을 뜨고 뇌의 반쪽만 쉬게 할 수 있습니다.</li>
+      <li>오리 소리는 종류에 따라 다르며, 대표적으로 "꽥꽥" 소리를 냅니다.</li>
+    </ul>
+  </section>
+
+  <footer>
+    Made with Claude Code · 깃 연습용 페이지
+  </footer>
+</main>
+</body>
+</html>
