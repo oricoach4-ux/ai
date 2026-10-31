@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>photo-edit 미리보기</title>
+<style>
+  :root{
+    --bg:#f5f5f7; --panel:#ffffff; --text:#1d1d1f; --muted:#6e6e73;
+    --border:#e2e2e5; --accent:#2563eb; --accent-ink:#ffffff; --code-bg:#0f172a; --code-text:#e2e8f0;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#15161a; --panel:#1f2024; --text:#f2f2f3; --muted:#9a9aa2; --border:#2d2e33; --code-bg:#0b0d12; --code-text:#d7e3f4; }
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;padding:24px 16px 60px;}
+  .wrap{max-width:980px;margin:0 auto;}
+  h1{font-size:20px;margin:0 0 4px;}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 20px;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:16px;}
+  .dropzone{border:2px dashed var(--border);border-radius:12px;padding:22px;text-align:center;cursor:pointer;transition:border-color .15s;}
+  .dropzone.drag{border-color:var(--accent);}
+  .dropzone input{display:none;}
+  .dropzone p{margin:0;color:var(--muted);font-size:13px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:640px){.grid{grid-template-columns:1fr;}}
+  .imgbox{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:repeating-conic-gradient(#8884 0% 25%, transparent 0% 50%) 50% / 16px 16px;min-height:140px;display:flex;align-items:center;justify-content:center;}
+  .imgbox canvas{max-width:100%;display:block;}
+  .imgbox .empty{color:var(--muted);font-size:12px;padding:30px;}
+  .caption{font-size:12px;color:var(--muted);margin:6px 2px 0;display:flex;justify-content:space-between;}
+  .controls{display:grid;gap:14px;}
+  .row{display:grid;grid-template-columns:90px 1fr 64px;align-items:center;gap:10px;}
+  .row label{font-size:13px;color:var(--text);}
+  .row input[type=range]{width:100%;}
+  .row input[type=number]{width:64px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:6px;padding:4px 6px;font-size:13px;}
+  .row2{display:grid;grid-template-columns:90px 1fr;align-items:center;gap:10px;}
+  select, .textfield{border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:6px;padding:6px 8px;font-size:13px;width:100%;}
+  .sizefields{display:flex;gap:8px;align-items:center;}
+  .sizefields input{width:90px;}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;}
+  button{border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;}
+  button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+  button:active{transform:translateY(1px);}
+  .cmdbox{background:var(--code-bg);color:var(--code-text);border-radius:10px;padding:12px 14px;font-family:ui-monospace,Consolas,monospace;font-size:13px;overflow-x:auto;white-space:pre;margin-top:8px;}
+  .status{font-size:12px;color:var(--muted);min-height:16px;margin-top:6px;}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(10px);background:var(--text);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .note{font-size:12px;color:var(--muted);line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>photo-edit 미리보기</h1>
+  <p class="sub">scripts/edit_photo.py와 같은 순서(밝기 → 대비 → 색조 → 비율 크롭 → 리사이즈)로 브라우저에서 바로 계산합니다. 파일은 서버로 전송되지 않고 이 브라우저 안에서만 처리됩니다.</p>
+
+  <div class="panel">
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept="image/*">
+      <p id="dropLabel">이미지를 끌어다 놓거나 클릭해서 선택하세요 (jpg, png, webp, bmp)</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="grid">
+      <div>
+        <div class="imgbox"><canvas id="origCanvas" style="display:none"></canvas><span class="empty" id="origEmpty">원본 미리보기</span></div>
+        <div class="caption"><span>원본</span><span id="origDims"></span></div>
+      </div>
+      <div>
+        <div class="imgbox"><canvas id="resultCanvas" style="display:none"></canvas><span class="empty" id="resultEmpty">결과 미리보기</span></div>
+        <div class="caption"><span>결과</span><span id="resultDims"></span></div>
+      </div>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="panel controls">
+    <div class="row">
+      <label for="brightness">밝기</label>
+      <input type="range" id="brightness" min="0.1" max="3" step="0.01" value="1">
+      <input type="number" id="brightnessNum" min="0.1" max="3" step="0.01" value="1">
+    </div>
+    <div class="row">
+      <label for="contrast">대비</label>
+      <input type="range" id="contrast" min="0.1" max="3" step="0.01" value="1">
+      <input type="number" id="contrastNum" min="0.1" max="3" step="0.01" value="1">
+    </div>
+    <div class="row">
+      <label for="hue">색조(도)</label>
+      <input type="range" id="hue" min="-180" max="180" step="1" value="0">
+      <input type="number" id="hueNum" min="-180" max="180" step="1" value="0">
+    </div>
+    <div class="row2">
+      <label for="ratio">비율 크롭</label>
+      <select id="ratio">
+        <option value="">없음</option>
+        <option value="1:1">1:1</option>
+        <option value="4:5">4:5</option>
+        <option value="9:16">9:16</option>
+      </select>
+    </div>
+    <div class="row2">
+      <label>리사이즈(px)</label>
+      <div class="sizefields">
+        <input type="number" id="widthField" placeholder="width" min="1">
+        <span>×</span>
+        <input type="number" id="heightField" placeholder="height" min="1">
+        <span class="note">(하나만 입력하면 비율 유지)</span>
+      </div>
+    </div>
+    <div class="btnrow">
+      <button id="resetBtn">기본값으로 초기화</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row2">
+      <label for="inputPath">입력 경로</label>
+      <input type="text" id="inputPath" class="textfield" placeholder="예: photo.jpg 또는 전체 경로">
+    </div>
+    <p class="note">브라우저는 보안상 선택한 파일의 전체 경로를 알려주지 않으므로, 파일명만 자동으로 채워집니다. 실제 실행할 전체 경로를 직접 입력하거나 수정해서 쓰세요.</p>
+    <div class="cmdbox" id="cmdBox">python scripts/edit_photo.py "입력파일.jpg"</div>
+    <div class="btnrow">
+      <button class="primary" id="copyBtn">명령어 복사</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">복사되었습니다</div>
+
+<script>
+(function(){
+  const RATIO_PRESETS = {"1:1":[1,1], "4:5":[4,5], "9:16":[9,16]};
+
+  const fileInput = document.getElementById('fileInput');
+  const dropzone = document.getElementById('dropzone');
+  const dropLabel = document.getElementById('dropLabel');
+
+  const origCanvas = document.getElementById('origCanvas');
+  const origEmpty = document.getElementById('origEmpty');
+  const origDims = document.getElementById('origDims');
+  const resultCanvas = document.getElementById('resultCanvas');
+  const resultEmpty = document.getElementById('resultEmpty');
+  const resultDims = document.getElementById('resultDims');
+  const statusEl = document.getElementById('status');
+
+  const brightness = document.getElementById('brightness');
+  const brightnessNum = document.getElementById('brightnessNum');
+  const contrast = document.getElementById('contrast');
+  const contrastNum = document.getElementById('contrastNum');
+  const hue = document.getElementById('hue');
+  const hueNum = document.getElementById('hueNum');
+  const ratioSelect = document.getElementById('ratio');
+  const widthField = document.getElementById('widthField');
+  const heightField = document.getElementById('heightField');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const inputPath = document.getElementById('inputPath');
+  const cmdBox = document.getElementById('cmdBox');
+  const copyBtn = document.getElementById('copyBtn');
+  const toast = document.getElementById('toast');
+
+  let originalImage = null;
+  let debounceTimer = null;
+
+  function clamp255(v){ v = Math.round(v); return v < 0 ? 0 : (v > 255 ? 255 : v); }
+
+  // Pillow ImageEnhance.Brightness: blend(black, image, factor) == image * factor
+  // Pillow ImageEnhance.Contrast: blend(mean_gray, image, factor), mean = round(mean of 0.299R+0.587G+0.114B)
+  function applyAdjustments(canvas, opts){
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const data = imgData.data;
+    const n = w * h;
+
+    let sumL = 0;
+    for (let i = 0; i < data.length; i += 4){
+      let r = data[i], g = data[i+1], b = data[i+2];
+      if (opts.brightness !== 1){
+        r = clamp255(r * opts.brightness);
+        g = clamp255(g * opts.brightness);
+        b = clamp255(b * opts.brightness);
+        data[i] = r; data[i+1] = g; data[i+2] = b;
+      }
+      sumL += 0.299*r + 0.587*g + 0.114*b;
+    }
+
+    if (opts.contrast !== 1){
+      const mean = Math.round(sumL / n);
+      for (let i = 0; i < data.length; i += 4){
+        data[i]   = clamp255(mean + (data[i]   - mean) * opts.contrast);
+        data[i+1] = clamp255(mean + (data[i+1] - mean) * opts.contrast);
+        data[i+2] = clamp255(mean + (data[i+2] - mean) * opts.contrast);
+      }
+    }
+
+    if (opts.hue){
+      for (let i = 0; i < data.length; i += 4){
+        const [r, g, b] = rotateHue(data[i], data[i+1], data[i+2], opts.hue);
+        data[i] = r; data[i+1] = g; data[i+2] = b;
+      }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  // RGB <-> HSV rotation of the H channel by `degrees`, mirroring Image.convert("HSV") + shift + convert back.
+  function rotateHue(r, g, b, degrees){
+    const rn = r/255, gn = g/255, bn = b/255;
+    const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn), delta = max - min;
+    let h;
+    if (delta === 0) h = 0;
+    else if (max === rn) h = 60 * (((gn - bn) / delta) % 6);
+    else if (max === gn) h = 60 * (((bn - rn) / delta) + 2);
+    else h = 60 * (((rn - gn) / delta) + 4);
+    if (h < 0) h += 360;
+    const s = max === 0 ? 0 : delta / max;
+    const v = max;
+
+    h = ((h + degrees) % 360 + 360) % 360;
+
+    const c = v * s;
+    const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    const m = v - c;
+    let r1, g1, b1;
+    if (h < 60)      { r1=c; g1=x; b1=0; }
+    else if (h < 120){ r1=x; g1=c; b1=0; }
+    else if (h < 180){ r1=0; g1=c; b1=x; }
+    else if (h < 240){ r1=0; g1=x; b1=c; }
+    else if (h < 300){ r1=x; g1=0; b1=c; }
+    else             { r1=c; g1=0; b1=x; }
+
+    return [clamp255((r1+m)*255), clamp255((g1+m)*255), clamp255((b1+m)*255)];
+  }
+
+  // mirrors center_crop_to_ratio(): truncating division, matching Python's int()
+  function cropToRatio(canvas, ratioKey){
+    const [tw, th] = RATIO_PRESETS[ratioKey];
+    const targetRatio = tw / th;
+    const w = canvas.width, h = canvas.height;
+    const currentRatio = w / h;
+    let box;
+    if (currentRatio > targetRatio){
+      const newW = Math.trunc(h * targetRatio);
+      const left = Math.trunc((w - newW) / 2);
+      box = { x: left, y: 0, w: newW, h: h };
+    } else {
+      const newH = Math.trunc(w / targetRatio);
+      const top = Math.trunc((h - newH) / 2);
+      box = { x: 0, y: top, w: w, h: newH };
+    }
+    const out = document.createElement('canvas');
+    out.width = box.w; out.height = box.h;
+    out.getContext('2d').drawImage(canvas, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
+    return out;
+  }
+
+  // mirrors resize_image(): width-only / height-only keeps aspect via truncating division
+  function resizeCanvas(canvas, width, height){
+    let tw, th;
+    if (width && height){ tw = width; th = height; }
+    else if (width){ const r = width / canvas.width; tw = width; th = Math.trunc(canvas.height * r); }
+    else { const r = height / canvas.height; th = height; tw = Math.trunc(canvas.width * r); }
+    const out = document.createElement('canvas');
+    out.width = Math.max(1, tw); out.height = Math.max(1, th);
+    const octx = out.getContext('2d');
+    octx.imageSmoothingEnabled = true;
+    octx.imageSmoothingQuality = 'high';
+    octx.drawImage(canvas, 0, 0, out.width, out.height);
+    return out;
+  }
+
+  function currentOpts(){
+    return {
+      brightness: parseFloat(brightness.value),
+      contrast: parseFloat(contrast.value),
+      hue: parseFloat(hue.value),
+      ratio: ratioSelect.value,
+      width: widthField.value ? parseInt(widthField.value, 10) : null,
+      height: heightField.value ? parseInt(heightField.value, 10) : null,
+    };
+  }
+
+  function runPipeline(){
+    if (!originalImage) { updateCommand(); return; }
+    statusEl.textContent = '처리 중…';
+    requestAnimationFrame(() => {
+      const w = originalImage.naturalWidth, h = originalImage.naturalHeight;
+      const work = document.createElement('canvas');
+      work.width = w; work.height = h;
+      work.getContext('2d').drawImage(originalImage, 0, 0);
+
+      const opts = currentOpts();
+      applyAdjustments(work, opts);
+
+      let current = work;
+      if (opts.ratio) current = cropToRatio(current, opts.ratio);
+      if (opts.width || opts.height) current = resizeCanvas(current, opts.width, opts.height);
+
+      resultCanvas.width = current.width;
+      resultCanvas.height = current.height;
+      resultCanvas.getContext('2d').drawImage(current, 0, 0);
+      resultCanvas.style.display = 'block';
+      resultEmpty.style.display = 'none';
+      resultDims.textContent = current.width + ' × ' + current.height;
+
+      statusEl.textContent = '';
+      updateCommand();
+    });
+  }
+
+  function scheduleRun(){
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(runPipeline, 60);
+  }
+
+  function buildCommand(){
+    const path = (inputPath.value || '').trim() || '입력파일.jpg';
+    const opts = currentOpts();
+    const parts = ['python scripts/edit_photo.py "' + path + '"'];
+    if (opts.brightness !== 1) parts.push('--brightness ' + opts.brightness);
+    if (opts.contrast !== 1) parts.push('--contrast ' + opts.contrast);
+    if (opts.hue !== 0) parts.push('--hue ' + opts.hue);
+    if (opts.ratio) parts.push('--ratio ' + opts.ratio);
+    if (opts.width) parts.push('--width ' + opts.width);
+    if (opts.height) parts.push('--height ' + opts.height);
+    return parts.join(' ');
+  }
+
+  function updateCommand(){
+    cmdBox.textContent = buildCommand();
+  }
+
+  function syncPair(rangeEl, numEl){
+    rangeEl.addEventListener('input', () => { numEl.value = rangeEl.value; scheduleRun(); });
+    numEl.addEventListener('input', () => {
+      let v = parseFloat(numEl.value);
+      if (Number.isNaN(v)) return;
+      const min = parseFloat(rangeEl.min), max = parseFloat(rangeEl.max);
+      v = Math.min(max, Math.max(min, v));
+      rangeEl.value = v;
+      scheduleRun();
+    });
+  }
+  syncPair(brightness, brightnessNum);
+  syncPair(contrast, contrastNum);
+  syncPair(hue, hueNum);
+
+  [ratioSelect, widthField, heightField, inputPath].forEach(el => {
+    el.addEventListener('input', scheduleRun);
+    el.addEventListener('change', scheduleRun);
+  });
+
+  resetBtn.addEventListener('click', () => {
+    brightness.value = brightnessNum.value = 1;
+    contrast.value = contrastNum.value = 1;
+    hue.value = hueNum.value = 0;
+    ratioSelect.value = '';
+    widthField.value = '';
+    heightField.value = '';
+    scheduleRun();
+  });
+
+  function loadFile(file){
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        originalImage = img;
+        origCanvas.width = img.naturalWidth;
+        origCanvas.height = img.naturalHeight;
+        origCanvas.getContext('2d').drawImage(img, 0, 0);
+        origCanvas.style.display = 'block';
+        origEmpty.style.display = 'none';
+        origDims.textContent = img.naturalWidth + ' × ' + img.naturalHeight;
+        if (!inputPath.value) inputPath.value = file.name;
+        dropLabel.textContent = file.name + ' 불러옴 (다른 이미지를 다시 끌어다 놓아도 됩니다)';
+        runPipeline();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  fileInput.addEventListener('change', () => loadFile(fileInput.files[0]));
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    loadFile(e.dataTransfer.files[0]);
+  });
+
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 1400);
+  }
+
+  copyBtn.addEventListener('click', async () => {
+    const cmd = buildCommand();
+    try{
+      await navigator.clipboard.writeText(cmd);
+      showToast('명령어가 복사되었습니다');
+    }catch(err){
+      const ta = document.createElement('textarea');
+      ta.value = cmd;
+      document.body.appendChild(ta);
+      ta.select();
+      try{ document.execCommand('copy'); showToast('명령어가 복사되었습니다'); }
+      catch(e2){ showToast('복사 실패: 직접 선택해 복사해 주세요'); }
+      document.body.removeChild(ta);
+    }
+  });
+
+  updateCommand();
+})();
+</script>
+</body>
+</html>
